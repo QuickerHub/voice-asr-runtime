@@ -4,7 +4,21 @@ Place offline ASR model files here. The runtime reads `QUICKER_VOICE_MODEL_DIR` 
 
 ## Default model (SenseVoice int8)
 
-Download (~160 MB, includes ITN / punctuation):
+Pinned model: **`sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17`** (k2-fsa official ONNX export).
+
+Fingerprints are in [`sensevoice-model-identity.json`](sensevoice-model-identity.json). Any mirror (Bitiful zip, ModelScope, GitHub tar.bz2) must match these file hashes:
+
+| File | SHA256 |
+|------|--------|
+| `model.int8.onnx` | `c71f0ce0…2cd51` (239,233,841 bytes) |
+| `tokens.txt` | `f449eb28…a1dc` (315,894 bytes) |
+
+Domestic mirrors for the **same** files:
+
+- ModelScope: [pengzhendong/sherpa-onnx-sense-voice-zh-en-ja-ko-yue](https://www.modelscope.cn/models/pengzhendong/sherpa-onnx-sense-voice-zh-en-ja-ko-yue)
+- k2-fsa archive (via ghfast): `sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2`
+
+Download (~228 MB int8, includes ITN / punctuation):
 
 ```powershell
 cd voice-asr-runtime
