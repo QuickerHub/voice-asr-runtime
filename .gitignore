@@ -12,6 +12,7 @@ build/
 models/*
 !models/.gitkeep
 !models/README.md
+!models/sensevoice-model-identity.json
 
 # Release zips (upload to GitHub Releases)
 publish/*.zip
