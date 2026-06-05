@@ -7,7 +7,7 @@
 #
 # Examples:
 #   pwsh ./publish/Publish-VoiceAsrRelease.ps1
-#   pwsh ./publish/Publish-VoiceAsrRelease.ps1 -SkipBuild -UploadBitiful -UpdateChannelJson
+#   pwsh ./publish/Publish-VoiceAsrRelease.ps1 -SkipBuild -UploadBitiful -UpdateChannelJson  # local Bitiful fallback
 #   pwsh ./publish/Publish-VoiceAsrRelease.ps1 -PublishModel -SkipBuild
 #   pwsh ./publish/Publish-VoiceAsrRelease.ps1 -DryRun
 

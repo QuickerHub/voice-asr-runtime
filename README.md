@@ -48,9 +48,9 @@ See [`models/README.md`](models/README.md) for model layout.
 
 | Trigger | What runs |
 |---------|-----------|
-| **Git tag `v*.*.*` push** | [`.github/workflows/release.yml`](.github/workflows/release.yml) — runtime zip + channel manifest |
-| **Git tag `model-sensevoice` push** | Same workflow — versionless model zip only |
-| **Local one-shot** | `publish/Publish-VoiceAsrRelease.ps1` — optional Bitiful + monorepo channel sync |
+| **Git tag `v*.*.*` push** | [`.github/workflows/release.yml`](.github/workflows/release.yml) — runtime zip + channel manifest → GitHub Release + **Bitiful** |
+| **Git tag `model-sensevoice` push** | Same workflow — model zip → GitHub Release + **Bitiful** |
+| **Local one-shot** | `publish/Publish-VoiceAsrRelease.ps1` — optional `-UploadBitiful` for manual mirror sync |
 
 ```powershell
 # Runtime only (typical)
@@ -84,7 +84,7 @@ pwsh -NoProfile -File ./publish/Publish-VoiceAsrRelease.ps1 -SkipBuild -UploadBi
 pwsh -NoProfile -File ./publish/Upload-VoiceAsrToBitiful.ps1 -Version 0.1.0 -UseLocalVoiceRoot
 ```
 
-Bitiful upload uses `publish/.env` (see `publish/.env.example`). CI Bitiful is **off** by default; set repo variable `BITIFUL_UPLOAD_IN_CI=true` to enable (same as quicker-rpc).
+Bitiful upload runs automatically in GitHub Actions on every release tag. Configure repo **Secrets**: `BITIFUL_ACCESS_KEY`, `BITIFUL_SECRET_KEY`, `BITIFUL_BUCKET_NAME`; optional **Variables**: `BITIFUL_ENDPOINT_URL`, `BITIFUL_VOICE_ASR_OBJECT_PREFIX`. Local fallback: `publish/Upload-VoiceAsrToBitiful.ps1` (see `publish/.env.example`).
 
 **Domestic mirror (Bitiful)** — same bucket layout as QuickerAgent:
 
