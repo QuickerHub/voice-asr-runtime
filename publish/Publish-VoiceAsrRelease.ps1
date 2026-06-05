@@ -122,7 +122,7 @@ if (-not $MonorepoRoot) {
 
 $PublishDir = Join-Path $RepoRoot 'publish'
 $RuntimeZip = Join-Path $PublishDir "voice-asr-runtime-$Version-win-x64.zip"
-$ModelZip = Join-Path $PublishDir 'voice-asr-model-sensevoice-win-x64.zip'
+$ModelZip = Join-Path $PublishDir 'voice-asr-model-sensevoice.zip'
 $ManifestPath = Join-Path $PublishDir 'voice-plugin-channel.generated.json'
 $BitifulPrefix = 'https://s3.bitiful.net/quicker-pkgs/quicker-rpc/voice-asr'
 $manifestScript = Join-Path $PSScriptRoot 'Write-VoicePluginChannelManifest.ps1'
@@ -152,7 +152,7 @@ if (-not (Test-Path -LiteralPath $ModelZip)) {
         throw "Missing model zip and gh is not installed."
     }
     New-Item -ItemType Directory -Force -Path $PublishDir | Out-Null
-    gh release download $ModelTag --repo $Repo --pattern 'voice-asr-model-sensevoice-win-x64.zip' -D $PublishDir 2>$null
+    gh release download $ModelTag --repo $Repo --pattern 'voice-asr-model-sensevoice.zip' -D $PublishDir 2>$null
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $ModelZip)) {
         throw "Model zip missing locally and could not download from release $ModelTag. Run with -PublishModel to package and publish model."
     }
@@ -171,7 +171,7 @@ Windows voice **runtime** for QuickerAgent (quicker-voice-v1).
 | ``voice-asr-runtime-$Version-win-x64.zip`` | ~$runtimeMb MB |
 | ``voice-plugin-channel.generated.json`` | channel manifest |
 
-Model is published separately: release tag ``$ModelTag`` (``voice-asr-model-sensevoice-win-x64.zip``, ~$modelMb MB).
+Model is published separately: release tag ``$ModelTag`` (``voice-asr-model-sensevoice.zip``, ~$modelMb MB).
 
 Domestic mirror (Bitiful): ``$BitifulPrefix/``
 "@
@@ -179,7 +179,7 @@ Domestic mirror (Bitiful): ``$BitifulPrefix/``
 Write-Host "==> Runtime release $RuntimeTag -> $Repo" -ForegroundColor Cyan
 Write-Host "    Runtime:  $RuntimeZip"
 Write-Host "    Manifest: $ManifestPath"
-Write-Host "    Model ref: $ModelTag / voice-asr-model-sensevoice-win-x64.zip"
+Write-Host "    Model ref: $ModelTag / voice-asr-model-sensevoice.zip"
 
 if ($DryRun) {
     Write-Host 'DryRun: skipping GitHub / Bitiful / channel sync' -ForegroundColor Yellow
@@ -196,9 +196,9 @@ SenseVoice model pack for QuickerAgent voice plugin (versionless; update only wh
 
 | Asset | Size (approx) |
 |-------|---------------|
-| ``voice-asr-model-sensevoice-win-x64.zip`` | ~$modelMb MB |
+| ``voice-asr-model-sensevoice.zip`` | ~$modelMb MB |
 
-Domestic mirror (Bitiful): ``$BitifulPrefix/voice-asr-model-sensevoice-win-x64.zip``
+Domestic mirror (Bitiful): ``$BitifulPrefix/voice-asr-model-sensevoice.zip``
 "@
     Write-Host "==> Model release $ModelTag -> $Repo" -ForegroundColor Cyan
     Publish-GitHubReleaseAssets -ReleaseTag $ModelTag -Title 'SenseVoice model (voice-asr)' -Notes $modelNotes -Assets @($ModelZip) -Repository $Repo -IsDraft:$Draft -AllowRetag:$ForceRetag

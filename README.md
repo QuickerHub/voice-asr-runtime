@@ -65,7 +65,7 @@ pwsh ./publish/Publish-VoiceAsrRelease.ps1 -SkipBuild -PublishModel -UploadBitif
 | Asset | GitHub tag | Filename |
 |-------|------------|----------|
 | Runtime | `v0.1.1` | `voice-asr-runtime-0.1.1-win-x64.zip` |
-| Model | `model-sensevoice` (fixed) | `voice-asr-model-sensevoice-win-x64.zip` |
+| Model | `model-sensevoice` (fixed) | `voice-asr-model-sensevoice.zip` |
 
 ```powershell
 # CI: push runtime tag
@@ -91,7 +91,7 @@ Bitiful upload uses `publish/.env` (see `publish/.env.example`). CI Bitiful is *
 | Asset | URL pattern |
 |-------|-------------|
 | Runtime zip | `https://s3.bitiful.net/quicker-pkgs/quicker-rpc/voice-asr/voice-asr-runtime-<ver>-win-x64.zip` |
-| Model zip | `https://s3.bitiful.net/quicker-pkgs/quicker-rpc/voice-asr/voice-asr-model-sensevoice-win-x64.zip` |
+| Model zip | `https://s3.bitiful.net/quicker-pkgs/quicker-rpc/voice-asr/voice-asr-model-sensevoice.zip` |
 | version.txt | `https://s3.bitiful.net/quicker-pkgs/quicker-rpc/voice-asr/version.txt` |
 
 Tauri **一键安装** tries `*MirrorUrl` first (Bitiful), then GitHub release; verifies `*Sha256` when set in `voice-plugin-channel.json`.
@@ -102,7 +102,7 @@ Tauri **一键安装** tries `*MirrorUrl` first (Bitiful), then GitHub release; 
 pwsh -NoProfile -File ./scripts/build-win.ps1
 pwsh -NoProfile -File ./scripts/package-release.ps1
 # -> publish/voice-asr-runtime-<ver>-win-x64.zip
-# -> publish/voice-asr-model-sensevoice-win-x64.zip
+# -> publish/voice-asr-model-sensevoice.zip
 ```
 
 **User install (Tauri)**：设置 → 本地语音输入 → **一键安装**。
