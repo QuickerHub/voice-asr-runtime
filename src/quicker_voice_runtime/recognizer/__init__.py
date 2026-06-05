@@ -1,0 +1,46 @@
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+
+from quicker_voice_runtime.recognizer.base import Recognizer
+from quicker_voice_runtime.recognizer.stub import StubRecognizer
+
+logger = logging.getLogger(__name__)
+
+
+def create_recognizer(model_dir: Path | None, model_type: str | None) -> Recognizer:
+    if model_dir is not None:
+        from quicker_voice_runtime.recognizer.sherpa_onnx import try_create_sherpa_recognizer
+
+        sherpa = try_create_sherpa_recognizer(model_dir, model_type)
+        if sherpa is not None:
+            logger.info("Loaded sherpa-onnx recognizer from %s", model_dir)
+            return sherpa
+        logger.warning(
+            "Model dir %s present but sherpa recognizer failed; using stub",
+            model_dir,
+        )
+
+    sensevoice_dir = Path(__file__).resolve().parents[3] / "models" / "sensevoice"
+    if sensevoice_dir.is_dir() and model_dir is None:
+        from quicker_voice_runtime.recognizer.sherpa_onnx import try_create_sherpa_recognizer
+
+        sherpa = try_create_sherpa_recognizer(sensevoice_dir, model_type or "sensevoice")
+        if sherpa is not None:
+            logger.info("Loaded sherpa-onnx recognizer from %s", sensevoice_dir)
+            return sherpa
+
+    paraformer_dir = Path(__file__).resolve().parents[3] / "models" / "paraformer-zh"
+    if paraformer_dir.is_dir() and model_dir is None:
+        from quicker_voice_runtime.recognizer.sherpa_onnx import try_create_sherpa_recognizer
+
+        sherpa = try_create_sherpa_recognizer(
+            paraformer_dir, model_type or "paraformer"
+        )
+        if sherpa is not None:
+            logger.info("Loaded sherpa-onnx recognizer from %s", paraformer_dir)
+            return sherpa
+
+    logger.info("Using stub recognizer (no ASR model or sherpa-onnx unavailable)")
+    return StubRecognizer()

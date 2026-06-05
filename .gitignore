@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+*.egg-info/
+
+# Downloaded ASR models (large)
+models/*
+!models/.gitkeep
+!models/README.md
+
+# Release zips (upload to GitHub Releases)
+publish/*.zip
