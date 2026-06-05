@@ -72,7 +72,48 @@ def is_model_ready(dest: Path | None = None) -> bool:
     return _model_file(path) is not None
 
 
+def expand_download_urls(url: str) -> list[str]:
+    """Prefer domestic-friendly mirrors, then the canonical GitHub URL."""
+    canonical = url.strip()
+    if not canonical:
+        return []
+
+    mirrors: list[str] = []
+    if canonical.startswith("https://github.com/"):
+        mirrors.extend(
+            [
+                f"https://ghfast.top/{canonical}",
+                f"https://mirror.ghproxy.com/{canonical}",
+            ]
+        )
+    mirrors.append(canonical)
+
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for candidate in mirrors:
+        if candidate not in seen:
+            seen.add(candidate)
+            ordered.append(candidate)
+    return ordered
+
+
 def download_archive(url: str, dest: Path) -> None:
+    last_error: Exception | None = None
+    for candidate in expand_download_urls(url):
+        try:
+            _download_archive_once(candidate, dest)
+            return
+        except Exception as exc:  # noqa: BLE001 — try next mirror
+            last_error = exc
+            if dest.is_file():
+                dest.unlink(missing_ok=True)
+            print(f"  mirror failed: {exc}", file=sys.stderr)
+    if last_error is None:
+        raise RuntimeError(f"No download URL resolved for {url}")
+    raise RuntimeError(f"All download mirrors failed for {url}: {last_error}") from last_error
+
+
+def _download_archive_once(url: str, dest: Path) -> None:
     print(f"Downloading {url}")
     print(f"  -> {dest}")
     with urllib.request.urlopen(url, timeout=120) as response:
