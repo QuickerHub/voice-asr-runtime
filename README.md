@@ -48,12 +48,31 @@ See [`models/README.md`](models/README.md) for model layout.
 
 | Trigger | What runs |
 |---------|-----------|
-| **Git tag `v*.*.*` push** | [`.github/workflows/release.yml`](.github/workflows/release.yml) — build, zip, GitHub Release + `voice-plugin-channel.generated.json` |
-| **Local one-shot** | `publish/Publish-VoiceAsrRelease.ps1` — same assets + optional Bitiful + optional monorepo channel sync |
+| **Git tag `v*.*.*` push** | [`.github/workflows/release.yml`](.github/workflows/release.yml) — runtime zip + channel manifest |
+| **Git tag `model-sensevoice` push** | Same workflow — versionless model zip only |
+| **Local one-shot** | `publish/Publish-VoiceAsrRelease.ps1` — optional Bitiful + monorepo channel sync |
 
 ```powershell
-# CI: push tag (builds on GitHub Actions)
-git tag v0.1.0 && git push origin v0.1.0
+# Runtime only (typical)
+pwsh ./publish/Publish-VoiceAsrRelease.ps1 -SkipBuild -UploadBitiful -UpdateChannelJson
+
+# First-time or model update
+pwsh ./publish/Publish-VoiceAsrRelease.ps1 -SkipBuild -PublishModel -UploadBitiful -UpdateChannelJson
+```
+
+**Release layout**
+
+| Asset | GitHub tag | Filename |
+|-------|------------|----------|
+| Runtime | `v0.1.1` | `voice-asr-runtime-0.1.1-win-x64.zip` |
+| Model | `model-sensevoice` (fixed) | `voice-asr-model-sensevoice-win-x64.zip` |
+
+```powershell
+# CI: push runtime tag
+git tag v0.1.1 && git push origin v0.1.1
+
+# CI: push model (only when model files change)
+git tag -f model-sensevoice && git push origin model-sensevoice --force
 
 # Local full pipeline (monorepo root)
 pwsh ./publish/Publish-VoiceAsrRelease.ps1 -SkipBuild -UploadBitiful -UpdateChannelJson
@@ -72,7 +91,7 @@ Bitiful upload uses `publish/.env` (see `publish/.env.example`). CI Bitiful is *
 | Asset | URL pattern |
 |-------|-------------|
 | Runtime zip | `https://s3.bitiful.net/quicker-pkgs/quicker-rpc/voice-asr/voice-asr-runtime-<ver>-win-x64.zip` |
-| Model zip | `https://s3.bitiful.net/quicker-pkgs/quicker-rpc/voice-asr/voice-asr-model-sensevoice-<ver>-win-x64.zip` |
+| Model zip | `https://s3.bitiful.net/quicker-pkgs/quicker-rpc/voice-asr/voice-asr-model-sensevoice-win-x64.zip` |
 | version.txt | `https://s3.bitiful.net/quicker-pkgs/quicker-rpc/voice-asr/version.txt` |
 
 Tauri **一键安装** tries `*MirrorUrl` first (Bitiful), then GitHub release; verifies `*Sha256` when set in `voice-plugin-channel.json`.
@@ -83,7 +102,7 @@ Tauri **一键安装** tries `*MirrorUrl` first (Bitiful), then GitHub release; 
 pwsh -NoProfile -File ./scripts/build-win.ps1
 pwsh -NoProfile -File ./scripts/package-release.ps1
 # -> publish/voice-asr-runtime-<ver>-win-x64.zip
-# -> publish/voice-asr-model-sensevoice-<ver>-win-x64.zip
+# -> publish/voice-asr-model-sensevoice-win-x64.zip
 ```
 
 **User install (Tauri)**：设置 → 本地语音输入 → **一键安装**。
