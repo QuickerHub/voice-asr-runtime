@@ -44,17 +44,28 @@ See [`models/README.md`](models/README.md) for model layout.
 | `QUICKER_VOICE_MODEL_TYPE` | auto | `sensevoice` / `paraformer` / `whisper` |
 | `QUICKER_VOICE_LOG_LEVEL` | `INFO` | Logging |
 
-## Packaging (Windows)
+## Release automation
+
+| Trigger | What runs |
+|---------|-----------|
+| **Git tag `v*.*.*` push** | [`.github/workflows/release.yml`](.github/workflows/release.yml) — build, zip, GitHub Release + `voice-plugin-channel.generated.json` |
+| **Local one-shot** | `publish/Publish-VoiceAsrRelease.ps1` — same assets + optional Bitiful + optional monorepo channel sync |
 
 ```powershell
-cd voice-asr-runtime
-pwsh -NoProfile -File ./scripts/build-win.ps1
-pwsh -NoProfile -File ./scripts/package-release.ps1
-# -> publish/voice-asr-runtime-0.1.0-win-x64.zip  (~80 MB)
-# -> publish/voice-asr-model-sensevoice-0.1.0-win-x64.zip  (~160 MB)
+# CI: push tag (builds on GitHub Actions)
+git tag v0.1.0 && git push origin v0.1.0
+
+# Local full pipeline (monorepo root)
+pwsh ./publish/Publish-VoiceAsrRelease.ps1 -SkipBuild -UploadBitiful -UpdateChannelJson
+
+# voice-asr-runtime repo only
+pwsh -NoProfile -File ./publish/Publish-VoiceAsrRelease.ps1 -SkipBuild -UploadBitiful
+
+# Bitiful only (after GitHub release exists)
+pwsh -NoProfile -File ./publish/Upload-VoiceAsrToBitiful.ps1 -Version 0.1.0 -UseLocalVoiceRoot
 ```
 
-Upload both zips to [QuickerHub/voice-asr-runtime Releases](https://github.com/QuickerHub/voice-asr-runtime/releases); URLs go in `agent-gui/src-tauri/resources/voice-plugin-channel.json`.
+Bitiful upload uses `publish/.env` (see `publish/.env.example`). CI Bitiful is **off** by default; set repo variable `BITIFUL_UPLOAD_IN_CI=true` to enable (same as quicker-rpc).
 
 **Domestic mirror (Bitiful)** — same bucket layout as QuickerAgent:
 
@@ -64,18 +75,18 @@ Upload both zips to [QuickerHub/voice-asr-runtime Releases](https://github.com/Q
 | Model zip | `https://s3.bitiful.net/quicker-pkgs/quicker-rpc/voice-asr/voice-asr-model-sensevoice-<ver>-win-x64.zip` |
 | version.txt | `https://s3.bitiful.net/quicker-pkgs/quicker-rpc/voice-asr/version.txt` |
 
-Tauri **一键安装** tries `*MirrorUrl` first (Bitiful), then GitHub release.
+Tauri **一键安装** tries `*MirrorUrl` first (Bitiful), then GitHub release; verifies `*Sha256` when set in `voice-plugin-channel.json`.
+
+## Packaging (Windows)
 
 ```powershell
-# GitHub release (from voice-asr-runtime repo root)
-pwsh -NoProfile -File ./publish/Publish-VoiceAsrRelease.ps1 -SkipBuild
-
-# From quicker-rpc monorepo — GitHub + Bitiful upload
-pwsh -NoProfile -File ../publish/Publish-VoiceAsrRelease.ps1 -SkipBuild -UploadBitiful
-pwsh -NoProfile -File ../publish/Upload-VoiceAsrToBitiful.ps1 -Version 0.1.0
+pwsh -NoProfile -File ./scripts/build-win.ps1
+pwsh -NoProfile -File ./scripts/package-release.ps1
+# -> publish/voice-asr-runtime-<ver>-win-x64.zip
+# -> publish/voice-asr-model-sensevoice-<ver>-win-x64.zip
 ```
 
-**User install (Tauri)**：设置 → 本地语音输入 → **一键安装**。应用自动依次下载 Runtime、模型、写入配置并启动（用户只点一次；**不是**单个合并包，但安装过程全自动）。完成后离线可用。
+**User install (Tauri)**：设置 → 本地语音输入 → **一键安装**。
 
 Dev without network: Tauri install copies from `voice-asr-runtime/dist/` + `models/sensevoice/` when present.
 
