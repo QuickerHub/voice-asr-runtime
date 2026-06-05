@@ -13,6 +13,7 @@ from quicker_voice_runtime.paths import default_models_dir
 class RuntimeConfig:
     host: str
     port: int
+    transport: str
     model_dir: Path | None
     model_type: str | None
     log_level: str
@@ -41,6 +42,12 @@ def load_config(argv: list[str] | None = None) -> RuntimeConfig:
         "--port",
         type=int,
         default=int(os.environ.get("QUICKER_VOICE_PORT", "6016")),
+    )
+    parser.add_argument(
+        "--transport",
+        choices=("tcp", "stdio"),
+        default=os.environ.get("QUICKER_VOICE_TRANSPORT", "tcp"),
+        help="tcp: HTTP+WebSocket; stdio: framed JSON/PCM on stdin/stdout (Tauri IPC)",
     )
     parser.add_argument(
         "--model-dir",
@@ -88,6 +95,7 @@ def load_config(argv: list[str] | None = None) -> RuntimeConfig:
     return RuntimeConfig(
         host=str(args.host),
         port=int(args.port),
+        transport=str(args.transport),
         model_dir=model_dir,
         model_type=str(args.model_type) if args.model_type else None,
         log_level=str(args.log_level).upper(),

@@ -1,101 +1,131 @@
-name: Release voice-asr-runtime
-
-# Build PyInstaller runtime + SenseVoice model zip on tag push; publish GitHub Release assets.
-# Bitiful (domestic mirror) stays off CI by default — upload locally via publish/Upload-VoiceAsrToBitiful.ps1
-# (same pattern as quicker-rpc QuickerAgent installer).
-
-on:
-  push:
-    tags:
-      - 'v*.*.*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Release tag to build (e.g. v0.1.0). Required for manual runs.'
-        required: true
-        type: string
-
-permissions:
-  contents: write
-
-concurrency:
-  group: voice-asr-release-${{ github.ref }}
-  cancel-in-progress: false
-
-jobs:
-  release:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
-
-      - name: Resolve tag and version
-        id: meta
-        shell: pwsh
-        run: |
-          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
-            $tag = '${{ inputs.tag }}'.Trim()
-          } else {
-            $tag = '${{ github.ref_name }}'.Trim()
-          }
-          if ($tag -notmatch '^v\d') {
-            throw "Tag must look like v0.1.0, got: $tag"
-          }
-          $version = $tag.Substring(1)
-          "tag=$tag" >> $env:GITHUB_OUTPUT
-          "version=$version" >> $env:GITHUB_OUTPUT
-          "runtime_zip=voice-asr-runtime-$version-win-x64.zip" >> $env:GITHUB_OUTPUT
-          "model_zip=voice-asr-model-sensevoice-$version-win-x64.zip" >> $env:GITHUB_OUTPUT
-
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Build runtime and package release zips
-        shell: pwsh
-        run: |
-          pwsh -NoProfile -File ./scripts/build-win.ps1
-          pwsh -NoProfile -File ./scripts/package-release.ps1 -Version '${{ steps.meta.outputs.version }}'
-
-      - name: Write channel manifest artifact
-        shell: pwsh
-        run: |
-          pwsh -NoProfile -File ./publish/Write-VoicePluginChannelManifest.ps1 `
-            -Version '${{ steps.meta.outputs.version }}' `
-            -Tag '${{ steps.meta.outputs.tag }}' `
-            -OutputPath ./publish/voice-plugin-channel.generated.json
-
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.meta.outputs.tag }}
-          name: quicker-voice-runtime ${{ steps.meta.outputs.tag }}
-          files: |
-            publish/${{ steps.meta.outputs.runtime_zip }}
-            publish/${{ steps.meta.outputs.model_zip }}
-            publish/voice-plugin-channel.generated.json
-          generate_release_notes: true
-
-      - name: Optional Bitiful upload (CI)
-        if: vars.BITIFUL_UPLOAD_IN_CI == 'true'
-        shell: pwsh
-        env:
-          BITIFUL_ACCESS_KEY: ${{ secrets.BITIFUL_ACCESS_KEY }}
-          BITIFUL_SECRET_KEY: ${{ secrets.BITIFUL_SECRET_KEY }}
-          BITIFUL_BUCKET_NAME: ${{ secrets.BITIFUL_BUCKET_NAME }}
-          BITIFUL_ENDPOINT_URL: ${{ vars.BITIFUL_ENDPOINT_URL }}
-          BITIFUL_VOICE_ASR_OBJECT_PREFIX: ${{ vars.BITIFUL_VOICE_ASR_OBJECT_PREFIX }}
-        run: |
-          python -m pip install --disable-pip-version-check --quiet boto3
-          pwsh -NoProfile -File ./publish/Upload-VoiceAsrToBitiful.ps1 `
-            -Version '${{ steps.meta.outputs.version }}' `
-            -Tag '${{ steps.meta.outputs.tag }}' `
-            -UseLocalVoiceRoot
+name: Release voice-asr-runtime
+
+# Runtime: tag v*.*.* — PyInstaller zip + channel manifest (model URL points to model-sensevoice release).
+# Model:   tag model-sensevoice — versionless model zip (update only when model files change).
+# Bitiful stays off CI by default — upload locally via publish/Upload-VoiceAsrToBitiful.ps1
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+      - 'model-sensevoice'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (v0.1.1 or model-sensevoice)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: voice-asr-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+      - name: Resolve tag and version
+        id: meta
+        shell: pwsh
+        run: |
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            $tag = '${{ inputs.tag }}'.Trim()
+          } else {
+            $tag = '${{ github.ref_name }}'.Trim()
+          }
+          $isModel = ($tag -eq 'model-sensevoice')
+          if (-not $isModel -and $tag -notmatch '^v\d') {
+            throw "Runtime tag must look like v0.1.0, got: $tag"
+          }
+          $version = if ($isModel) { '' } else { $tag.Substring(1) }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "is_model=$isModel" >> $env:GITHUB_OUTPUT
+          if (-not $isModel) {
+            "runtime_zip=voice-asr-runtime-$version-win-x64.zip" >> $env:GITHUB_OUTPUT
+          }
+          "model_zip=voice-asr-model-sensevoice-win-x64.zip" >> $env:GITHUB_OUTPUT
+
+      - name: Setup uv
+        if: steps.meta.outputs.is_model != 'true'
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build runtime and package runtime zip
+        if: steps.meta.outputs.is_model != 'true'
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File ./scripts/build-win.ps1
+          pwsh -NoProfile -File ./scripts/package-runtime.ps1 -Version '${{ steps.meta.outputs.version }}'
+
+      - name: Package model zip
+        if: steps.meta.outputs.is_model == 'true'
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File ./scripts/package-model.ps1
+
+      - name: Write channel manifest artifact
+        if: steps.meta.outputs.is_model != 'true'
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File ./scripts/package-model.ps1
+          pwsh -NoProfile -File ./publish/Write-VoicePluginChannelManifest.ps1 `
+            -Version '${{ steps.meta.outputs.version }}' `
+            -RuntimeTag '${{ steps.meta.outputs.tag }}' `
+            -ModelTag 'model-sensevoice' `
+            -OutputPath ./publish/voice-plugin-channel.generated.json
+
+      - name: Publish runtime GitHub Release
+        if: steps.meta.outputs.is_model != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: quicker-voice-runtime ${{ steps.meta.outputs.tag }}
+          files: |
+            publish/${{ steps.meta.outputs.runtime_zip }}
+            publish/voice-plugin-channel.generated.json
+          generate_release_notes: true
+
+      - name: Publish model GitHub Release
+        if: steps.meta.outputs.is_model == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: model-sensevoice
+          name: SenseVoice model (voice-asr)
+          files: |
+            publish/${{ steps.meta.outputs.model_zip }}
+          generate_release_notes: false
+          body: |
+            Versionless SenseVoice model pack. Update this release only when model files change.
+
+      - name: Optional Bitiful upload (CI)
+        if: vars.BITIFUL_UPLOAD_IN_CI == 'true'
+        shell: pwsh
+        env:
+          BITIFUL_ACCESS_KEY: ${{ secrets.BITIFUL_ACCESS_KEY }}
+          BITIFUL_SECRET_KEY: ${{ secrets.BITIFUL_SECRET_KEY }}
+          BITIFUL_BUCKET_NAME: ${{ secrets.BITIFUL_BUCKET_NAME }}
+          BITIFUL_ENDPOINT_URL: ${{ vars.BITIFUL_ENDPOINT_URL }}
+          BITIFUL_VOICE_ASR_OBJECT_PREFIX: ${{ vars.BITIFUL_VOICE_ASR_OBJECT_PREFIX }}
+        run: |
+          python -m pip install --disable-pip-version-check --quiet boto3
+          $extra = @()
+          if ('${{ steps.meta.outputs.is_model }}' -eq 'true') { $extra += '-PublishModel' }
+          pwsh -NoProfile -File ./publish/Upload-VoiceAsrToBitiful.ps1 `
+            -Version '${{ steps.meta.outputs.version }}' `
+            -RuntimeTag '${{ steps.meta.outputs.tag }}' `
+            -UseLocalVoiceRoot @extra

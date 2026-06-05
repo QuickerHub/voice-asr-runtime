@@ -7,6 +7,7 @@ import os
 from quicker_voice_runtime.config import RuntimeConfig, configure_logging, load_config
 from quicker_voice_runtime.recognizer import create_recognizer
 from quicker_voice_runtime.server import run_server
+from quicker_voice_runtime.stdio_transport import run_stdio
 
 
 def _config_with_model(config: RuntimeConfig) -> RuntimeConfig:
@@ -30,6 +31,7 @@ def _config_with_model(config: RuntimeConfig) -> RuntimeConfig:
             return RuntimeConfig(
                 host=config.host,
                 port=config.port,
+                transport=config.transport,
                 model_dir=target_dir(),
                 model_type=config.model_type or "sensevoice",
                 log_level=config.log_level,
@@ -48,7 +50,10 @@ def main(argv: list[str] | None = None) -> None:
     )
     recognizer = create_recognizer(config.model_dir, config.model_type)
     try:
-        asyncio.run(run_server(config, recognizer))
+        if config.transport == "stdio":
+            run_stdio(config, recognizer)
+        else:
+            asyncio.run(run_server(config, recognizer))
     except KeyboardInterrupt:
         logging.getLogger(__name__).info("Shutting down")
 

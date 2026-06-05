@@ -12,8 +12,4 @@ if (-not $Version) {
         $Version = (Get-Content $VersionFile -Raw).Trim()
     }
 }
-if ($Version) {
-    & (Join-Path $ScriptDir "package-model.ps1") -Version $Version
-} else {
-    & (Join-Path $ScriptDir "package-model.ps1")
-}
+& (Join-Path $ScriptDir "package-model.ps1")

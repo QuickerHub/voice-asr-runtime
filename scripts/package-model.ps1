@@ -7,7 +7,6 @@
   pwsh -NoProfile -File ./scripts/package-model.ps1
 #>
 param(
-    [string]$Version = "0.1.0",
     [switch]$SkipModelDownload
 )
 
@@ -26,7 +25,7 @@ if (-not (Test-Path (Join-Path $ModelDir "tokens.txt"))) {
 
 $PublishDir = Join-Path $Root "publish"
 New-Item -ItemType Directory -Force -Path $PublishDir | Out-Null
-$ZipName = "voice-asr-model-sensevoice-$Version-win-x64.zip"
+$ZipName = "voice-asr-model-sensevoice-win-x64.zip"
 $ZipPath = Join-Path $PublishDir $ZipName
 if (Test-Path $ZipPath) {
     Remove-Item $ZipPath -Force
