@@ -33,7 +33,7 @@ class VoiceSessionRouter:
             "runtimeVersion": runtime_version,
             "modelId": self._recognizer.model_id,
             "modelLoaded": self._recognizer.model_id != "stub",
-            "ready": self._recognizer.ready,
+            "ready": self._recognizer.model_id != "stub" and self._recognizer.ready,
         }
 
     def handle_control(self, payload: dict[str, Any]) -> list[dict[str, Any]]:

@@ -6,7 +6,7 @@ from quicker_voice_runtime.recognizer.base import Recognizer
 
 class StubRecognizer:
     model_id = "stub"
-    ready = True
+    ready = False
 
     def transcribe(self, pcm_s16le: bytes, *, sample_rate: int, language: str) -> str:
         if len(pcm_s16le) < sample_rate * 2 // 5:

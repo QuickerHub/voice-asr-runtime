@@ -44,9 +44,12 @@ def _detect_model_type(model_dir: Path, explicit: str | None) -> str | None:
     if "whisper" in name:
         return "whisper"
     if (model_dir / "model.int8.onnx").is_file() or (model_dir / "model.onnx").is_file():
+        if "sensevoice" in name or "sense_voice" in name or "sense-voice" in name:
+            return "sensevoice"
         if "paraformer" in name:
             return "paraformer"
-        if "sensevoice" in name or "sense_voice" in name or "sense-voice" in name:
+        # Default shipped model for QuickerAgent is SenseVoice int8.
+        if (model_dir / "model.int8.onnx").is_file():
             return "sensevoice"
         return "paraformer"
     if (model_dir / "encoder.onnx").is_file() or (
