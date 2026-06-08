@@ -34,6 +34,8 @@ def _config_with_model(config: RuntimeConfig) -> RuntimeConfig:
                 transport=config.transport,
                 model_dir=target_dir(),
                 model_type=config.model_type or "sensevoice",
+                provider=config.provider,
+                num_threads=config.num_threads,
                 log_level=config.log_level,
             )
     except Exception as exc:
@@ -48,7 +50,12 @@ def main(argv: list[str] | None = None) -> None:
         "Starting quicker-voice-runtime (model_dir=%s)",
         config.model_dir,
     )
-    recognizer = create_recognizer(config.model_dir, config.model_type)
+    recognizer = create_recognizer(
+        config.model_dir,
+        config.model_type,
+        provider=config.provider,
+        num_threads=config.num_threads,
+    )
     try:
         if config.transport == "stdio":
             run_stdio(config, recognizer)

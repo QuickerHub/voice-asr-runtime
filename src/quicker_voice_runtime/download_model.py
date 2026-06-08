@@ -44,6 +44,13 @@ DEFAULT_PRESET = "sensevoice"
 REQUIRED_FILES = ("tokens.txt",)
 MODEL_FILE_CANDIDATES = ("model.int8.onnx", "model.onnx")
 OPTIONAL_FILES = ("am.mvn", "config.yaml")
+PROGRESS_MARKER = "QUICKER_VOICE_PROGRESS"
+
+
+def report_download_progress(percent: int, message: str) -> None:
+    """Machine-readable progress for QuickerAgent host (stdout)."""
+    pct = max(0, min(100, int(percent)))
+    print(f"{PROGRESS_MARKER}\t{pct}\t{message}", flush=True)
 
 
 def load_sensevoice_identity() -> dict[str, Any]:
@@ -149,11 +156,22 @@ def expand_download_urls(url: str) -> list[str]:
     return ordered
 
 
-def download_file(url: str, dest: Path) -> None:
+def download_file(
+    url: str,
+    dest: Path,
+    *,
+    percent_start: int = 8,
+    percent_end: int = 82,
+) -> None:
     last_error: Exception | None = None
     for candidate in expand_download_urls(url):
         try:
-            _download_file_once(candidate, dest)
+            _download_file_once(
+                candidate,
+                dest,
+                percent_start=percent_start,
+                percent_end=percent_end,
+            )
             return
         except Exception as exc:  # noqa: BLE001 — try next mirror
             last_error = exc
@@ -168,13 +186,21 @@ def download_archive(url: str, dest: Path) -> None:
     download_file(url, dest)
 
 
-def _download_file_once(url: str, dest: Path) -> None:
+def _download_file_once(
+    url: str,
+    dest: Path,
+    *,
+    percent_start: int = 8,
+    percent_end: int = 82,
+) -> None:
     print(f"Downloading {url}")
     print(f"  -> {dest}")
+    report_download_progress(percent_start, "正在连接下载源…")
     with urllib.request.urlopen(url, timeout=300) as response:
         total = int(response.headers.get("Content-Length") or 0)
         downloaded = 0
         block = 1024 * 1024
+        span = max(1, percent_end - percent_start)
         with dest.open("wb") as out:
             while True:
                 chunk = response.read(block)
@@ -183,9 +209,21 @@ def _download_file_once(url: str, dest: Path) -> None:
                 out.write(chunk)
                 downloaded += len(chunk)
                 if total > 0:
-                    pct = downloaded * 100 // total
-                    print(f"\r  {pct}% ({downloaded // (1024 * 1024)} MB)", end="", flush=True)
-    print()
+                    ratio = downloaded / total
+                    pct = percent_start + int(ratio * span)
+                    mb_done = downloaded // (1024 * 1024)
+                    mb_total = total // (1024 * 1024)
+                    report_download_progress(
+                        pct,
+                        f"正在下载… {mb_done} / {mb_total} MB",
+                    )
+                else:
+                    mb_done = downloaded // (1024 * 1024)
+                    report_download_progress(
+                        percent_start + span // 2,
+                        f"正在下载… {mb_done} MB",
+                    )
+    report_download_progress(percent_end, "下载完成，准备解压…")
 
 
 def download_sensevoice_from_modelscope(dest: Path) -> None:
@@ -199,14 +237,23 @@ def download_sensevoice_from_modelscope(dest: Path) -> None:
         modelscope_base = f"{str(modelscope_base).rstrip('/')}/resolve/master"
     dest.mkdir(parents=True, exist_ok=True)
     print(f"Fetching {identity['label']} from ModelScope ({identity['id']})")
-    for name in identity["files"]:
+    files: dict[str, Any] = identity["files"]
+    total_bytes = sum(int(spec["size"]) for spec in files.values()) or 1
+    done_bytes = 0
+    report_download_progress(5, f"从 ModelScope 下载 {identity['id']}…")
+    for name, spec in files.items():
         out_path = dest / name
         url = f"{modelscope_base}/{name}"
-        download_file(url, out_path)
+        file_size = int(spec["size"])
+        start = 8 + int((done_bytes / total_bytes) * 74)
+        end = 8 + int(((done_bytes + file_size) / total_bytes) * 74)
+        download_file(url, out_path, percent_start=start, percent_end=end)
+        done_bytes += file_size
     verify_sensevoice_files(dest)
 
 
 def extract_model(archive: Path, dest: Path) -> None:
+    report_download_progress(86, "正在解压模型文件…")
     dest.mkdir(parents=True, exist_ok=True)
     with tarfile.open(archive, mode="r:bz2") as tar:
         members = tar.getmembers()
@@ -249,14 +296,18 @@ def download_sensevoice_from_archive(dest: Path) -> None:
 def ensure_sensevoice_model(root: Path | None = None) -> Path:
     dest = target_dir(root, "sensevoice")
     if is_model_ready(dest, preset="sensevoice"):
+        report_download_progress(100, "模型已存在")
         return dest
 
+    report_download_progress(2, "准备下载 SenseVoice 模型…")
     errors: list[str] = []
     for fetch in (download_sensevoice_from_modelscope, download_sensevoice_from_archive):
         if dest.exists():
             shutil.rmtree(dest, ignore_errors=True)
         try:
             fetch(dest)
+            report_download_progress(98, "校验模型文件…")
+            report_download_progress(100, "模型下载完成")
             return dest
         except Exception as exc:  # noqa: BLE001 — try next source
             errors.append(f"{fetch.__name__}: {exc}")
@@ -275,8 +326,10 @@ def ensure_asr_model(root: Path | None = None, preset: str | None = None) -> Pat
     preset_info = MODEL_PRESETS[key]
     dest = target_dir(root, key)
     if is_model_ready(dest, preset=key):
+        report_download_progress(100, "模型已存在")
         return dest
 
+    report_download_progress(2, f"准备下载 {preset_info['label']}…")
     print(f"Fetching {preset_info['label']}")
     archive_name = preset_info["url"].rsplit("/", maxsplit=1)[-1]
     with tempfile.TemporaryDirectory(prefix="quicker-voice-model-") as tmp:
@@ -286,6 +339,8 @@ def ensure_asr_model(root: Path | None = None, preset: str | None = None) -> Pat
 
     if not is_model_ready(dest, preset=key):
         raise RuntimeError(f"Model files missing after extract: {dest}")
+    report_download_progress(98, "校验模型文件…")
+    report_download_progress(100, "模型下载完成")
     return dest
 
 

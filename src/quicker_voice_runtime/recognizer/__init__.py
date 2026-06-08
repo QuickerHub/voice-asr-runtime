@@ -9,11 +9,22 @@ from quicker_voice_runtime.recognizer.stub import StubRecognizer
 logger = logging.getLogger(__name__)
 
 
-def create_recognizer(model_dir: Path | None, model_type: str | None) -> Recognizer:
+def create_recognizer(
+    model_dir: Path | None,
+    model_type: str | None,
+    *,
+    provider: str = "cpu",
+    num_threads: int = 4,
+) -> Recognizer:
     if model_dir is not None:
         from quicker_voice_runtime.recognizer.sherpa_onnx import try_create_sherpa_recognizer
 
-        sherpa = try_create_sherpa_recognizer(model_dir, model_type)
+        sherpa = try_create_sherpa_recognizer(
+            model_dir,
+            model_type,
+            provider=provider,
+            num_threads=num_threads,
+        )
         if sherpa is not None:
             logger.info("Loaded sherpa-onnx recognizer from %s", model_dir)
             return sherpa
@@ -26,7 +37,12 @@ def create_recognizer(model_dir: Path | None, model_type: str | None) -> Recogni
     if sensevoice_dir.is_dir() and model_dir is None:
         from quicker_voice_runtime.recognizer.sherpa_onnx import try_create_sherpa_recognizer
 
-        sherpa = try_create_sherpa_recognizer(sensevoice_dir, model_type or "sensevoice")
+        sherpa = try_create_sherpa_recognizer(
+            sensevoice_dir,
+            model_type or "sensevoice",
+            provider=provider,
+            num_threads=num_threads,
+        )
         if sherpa is not None:
             logger.info("Loaded sherpa-onnx recognizer from %s", sensevoice_dir)
             return sherpa
@@ -36,7 +52,10 @@ def create_recognizer(model_dir: Path | None, model_type: str | None) -> Recogni
         from quicker_voice_runtime.recognizer.sherpa_onnx import try_create_sherpa_recognizer
 
         sherpa = try_create_sherpa_recognizer(
-            paraformer_dir, model_type or "paraformer"
+            paraformer_dir,
+            model_type or "paraformer",
+            provider=provider,
+            num_threads=num_threads,
         )
         if sherpa is not None:
             logger.info("Loaded sherpa-onnx recognizer from %s", paraformer_dir)

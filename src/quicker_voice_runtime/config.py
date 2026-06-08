@@ -9,6 +9,22 @@ from pathlib import Path
 from quicker_voice_runtime.paths import default_models_dir
 
 
+def _default_provider() -> str:
+    raw = os.environ.get("QUICKER_VOICE_PROVIDER", "cpu").strip().lower()
+    if raw in {"cpu", "cuda", "directml", "coreml", "trt"}:
+        return raw
+    return "cpu"
+
+
+def _default_num_threads() -> int:
+    raw = os.environ.get("QUICKER_VOICE_NUM_THREADS", "4").strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return 4
+    return max(1, min(value, 32))
+
+
 @dataclass(frozen=True)
 class RuntimeConfig:
     host: str
@@ -16,6 +32,8 @@ class RuntimeConfig:
     transport: str
     model_dir: Path | None
     model_type: str | None
+    provider: str
+    num_threads: int
     log_level: str
 
     @property
@@ -63,6 +81,17 @@ def load_config(argv: list[str] | None = None) -> RuntimeConfig:
         "--log-level",
         default=os.environ.get("QUICKER_VOICE_LOG_LEVEL", "INFO"),
     )
+    parser.add_argument(
+        "--provider",
+        default=os.environ.get("QUICKER_VOICE_PROVIDER", "cpu"),
+        help="ONNX execution provider: cpu | directml | cuda | coreml",
+    )
+    parser.add_argument(
+        "--num-threads",
+        type=int,
+        default=int(os.environ.get("QUICKER_VOICE_NUM_THREADS", "4")),
+        help="CPU thread count when provider is cpu",
+    )
     args = parser.parse_args(argv)
 
     model_dir: Path | None = None
@@ -92,12 +121,20 @@ def load_config(argv: list[str] | None = None) -> RuntimeConfig:
             elif (candidate / "tokens.txt").is_file() or list(candidate.glob("*.onnx")):
                 model_dir = candidate.resolve()
 
+    provider = str(args.provider).strip().lower()
+    if provider not in {"cpu", "cuda", "directml", "coreml", "trt"}:
+        provider = _default_provider()
+
+    num_threads = max(1, min(int(args.num_threads), 32))
+
     return RuntimeConfig(
         host=str(args.host),
         port=int(args.port),
         transport=str(args.transport),
         model_dir=model_dir,
         model_type=str(args.model_type) if args.model_type else None,
+        provider=provider,
+        num_threads=num_threads,
         log_level=str(args.log_level).upper(),
     )
 

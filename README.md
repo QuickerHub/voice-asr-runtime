@@ -42,6 +42,8 @@ See [`models/README.md`](models/README.md) for model layout.
 | `QUICKER_VOICE_PORT` | `6016` | HTTP + WS port |
 | `QUICKER_VOICE_MODEL_DIR` | auto | Sherpa model directory |
 | `QUICKER_VOICE_MODEL_TYPE` | auto | `sensevoice` / `paraformer` / `whisper` |
+| `QUICKER_VOICE_PROVIDER` | `cpu` | ONNX provider: `cpu` / `directml` (Windows GPU) / `cuda` / `coreml` |
+| `QUICKER_VOICE_NUM_THREADS` | `4` | CPU thread count when provider is `cpu` |
 | `QUICKER_VOICE_LOG_LEVEL` | `INFO` | Logging |
 
 ## Release automation

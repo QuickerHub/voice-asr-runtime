@@ -54,6 +54,10 @@ class VoiceRuntimeApp:
 
             "ready": self._recognizer.model_id != "stub" and self._recognizer.ready,
 
+            "executionProvider": getattr(
+                self._recognizer, "execution_provider", "cpu"
+            ),
+
         }
 
 
