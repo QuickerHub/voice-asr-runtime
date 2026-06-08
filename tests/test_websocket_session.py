@@ -11,16 +11,23 @@ from quicker_voice_runtime.recognizer.stub import StubRecognizer
 from quicker_voice_runtime.server import VoiceRuntimeApp
 
 
+class _ReadyStubRecognizer(StubRecognizer):
+    ready = True
+
+
 @pytest.fixture
 async def voice_client() -> TestClient:
     config = RuntimeConfig(
         host="127.0.0.1",
         port=6016,
+        transport="tcp",
         model_dir=None,
         model_type=None,
+        provider="cpu",
+        num_threads=4,
         log_level="WARNING",
     )
-    app = VoiceRuntimeApp(config, StubRecognizer()).create_web_app()
+    app = VoiceRuntimeApp(config, _ReadyStubRecognizer()).create_web_app()
     server = TestServer(app)
     client = TestClient(server)
     await client.start_server()

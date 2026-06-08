@@ -47,6 +47,20 @@ OPTIONAL_FILES = ("am.mvn", "config.yaml")
 PROGRESS_MARKER = "QUICKER_VOICE_PROGRESS"
 
 
+def _configure_stdio_utf8() -> None:
+    """Windows CI defaults to cp1252; progress messages use CJK text."""
+    if sys.platform != "win32":
+        return
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (OSError, ValueError):
+            pass
+
+
 def report_download_progress(percent: int, message: str) -> None:
     """Machine-readable progress for QuickerAgent host (stdout)."""
     pct = max(0, min(100, int(percent)))
@@ -349,6 +363,7 @@ def ensure_paraformer_model(root: Path | None = None) -> Path:
 
 
 def main() -> None:
+    _configure_stdio_utf8()
     preset = resolve_preset()
     try:
         path = ensure_asr_model(preset=preset)

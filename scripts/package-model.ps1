@@ -20,6 +20,7 @@ if (-not (Test-Path (Join-Path $ModelDir "tokens.txt"))) {
         throw "Missing model in $ModelDir — run: uv run download-asr-model"
     }
     Write-Host "==> Downloading SenseVoice model (~160 MB)" -ForegroundColor Cyan
+    $env:PYTHONIOENCODING = 'utf-8'
     uv run download-asr-model
 }
 
