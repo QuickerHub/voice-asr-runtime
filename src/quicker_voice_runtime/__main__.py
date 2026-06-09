@@ -2,49 +2,41 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 
-from quicker_voice_runtime.config import RuntimeConfig, configure_logging, load_config
+from quicker_voice_runtime.config import configure_logging, load_config
+from quicker_voice_runtime.model_bootstrap import resolve_runtime_model
 from quicker_voice_runtime.recognizer import create_recognizer
 from quicker_voice_runtime.server import run_server
 from quicker_voice_runtime.stdio_transport import run_stdio
 
 
-def _config_with_model(config: RuntimeConfig) -> RuntimeConfig:
-    if config.model_dir is not None:
-        return config
-    if os.environ.get("QUICKER_VOICE_AUTO_DOWNLOAD_MODEL", "1") == "0":
-        return config
-
-    logger = logging.getLogger(__name__)
-    try:
-        from quicker_voice_runtime.download_model import (
-            ensure_sensevoice_model,
-            is_model_ready,
-            target_dir,
-        )
-
-        if not is_model_ready():
-            logger.info("Downloading SenseVoice model (~160MB, one-time)...")
-            ensure_sensevoice_model()
-        if is_model_ready():
-            return RuntimeConfig(
-                host=config.host,
-                port=config.port,
-                transport=config.transport,
-                model_dir=target_dir(),
-                model_type=config.model_type or "sensevoice",
-                provider=config.provider,
-                num_threads=config.num_threads,
-                log_level=config.log_level,
-            )
-    except Exception as exc:
-        logger.warning("ASR model download failed, using stub: %s", exc)
-    return config
-
-
 def main(argv: list[str] | None = None) -> None:
-    config = _config_with_model(load_config(argv))
+    import sys
+
+    if argv is None:
+        argv = sys.argv[1:]
+
+    if argv and argv[0] == "download-model":
+        from quicker_voice_runtime.download_model import main as download_main
+
+        download_main(argv[1:])
+        return
+
+    if argv and argv[0] == "check-model":
+        from quicker_voice_runtime.download_model import check_main
+
+        check_main(argv[1:])
+        return
+
+    base_config = load_config(argv)
+    try:
+        config = resolve_runtime_model(base_config)
+    except SystemExit:
+        raise
+    except Exception as exc:
+        logging.getLogger(__name__).error("ASR model bootstrap failed: %s", exc)
+        raise SystemExit(1) from exc
+
     configure_logging(config.log_level)
     logging.getLogger(__name__).info(
         "Starting quicker-voice-runtime (model_dir=%s)",
@@ -56,6 +48,12 @@ def main(argv: list[str] | None = None) -> None:
         provider=config.provider,
         num_threads=config.num_threads,
     )
+    if config.model_dir is not None and recognizer.model_id == "stub":
+        logging.getLogger(__name__).error(
+            "Failed to load sherpa-onnx model from %s",
+            config.model_dir,
+        )
+        raise SystemExit(1)
     try:
         if config.transport == "stdio":
             run_stdio(config, recognizer)

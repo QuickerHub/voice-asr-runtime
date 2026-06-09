@@ -114,7 +114,8 @@ jobs:
           body: |
             Versionless SenseVoice model pack. Update this release only when model files change.
 
-      - name: Verify Bitiful credentials
+      - name: Detect Bitiful credentials
+        id: bitiful
         shell: pwsh
         env:
           BITIFUL_ACCESS_KEY: ${{ secrets.BITIFUL_ACCESS_KEY }}
@@ -126,12 +127,15 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($env:BITIFUL_SECRET_KEY)) { $missing += 'BITIFUL_SECRET_KEY' }
           if ([string]::IsNullOrWhiteSpace($env:BITIFUL_BUCKET_NAME)) { $missing += 'BITIFUL_BUCKET_NAME' }
           if ($missing.Count -gt 0) {
-            throw "Bitiful secrets missing on voice-asr-runtime repo: $($missing -join ', '). Add them under Settings → Secrets."
+            Write-Host "::warning::Bitiful secrets missing ($($missing -join ', ')) — skipping CDN mirror upload. GitHub Release assets are still published."
+            "enabled=false" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Host 'Bitiful credentials present — upload will run after GitHub Release.'
+            "enabled=true" >> $env:GITHUB_OUTPUT
           }
-          Write-Host 'Bitiful credentials present — upload will run after GitHub Release.'
 
       - name: Upload runtime to Bitiful
-        if: steps.meta.outputs.is_model != 'true'
+        if: steps.meta.outputs.is_model != 'true' && steps.bitiful.outputs.enabled == 'true'
         shell: pwsh
         env:
           BITIFUL_ACCESS_KEY: ${{ secrets.BITIFUL_ACCESS_KEY }}
@@ -154,7 +158,7 @@ jobs:
           "@
 
       - name: Upload model to Bitiful
-        if: steps.meta.outputs.is_model == 'true'
+        if: steps.meta.outputs.is_model == 'true' && steps.bitiful.outputs.enabled == 'true'
         shell: pwsh
         env:
           BITIFUL_ACCESS_KEY: ${{ secrets.BITIFUL_ACCESS_KEY }}

@@ -1,6 +1,6 @@
 [project]
 name = "quicker-voice-runtime"
-version = "0.1.2"
+version = "0.1.3"
 description = "Local ASR server for QuickerAgent (quicker-voice-v1 WebSocket protocol)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -24,6 +24,7 @@ sherpa = [
 quicker-voice-runtime = "quicker_voice_runtime.__main__:main"
 download-asr-model = "quicker_voice_runtime.download_model:main"
 download-sensevoice-model = "quicker_voice_runtime.download_model:main"
+check-asr-model = "quicker_voice_runtime.download_model:check_main"
 
 [build-system]
 requires = ["hatchling"]

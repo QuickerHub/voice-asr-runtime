@@ -44,6 +44,9 @@ DEFAULT_PRESET = "sensevoice"
 REQUIRED_FILES = ("tokens.txt",)
 MODEL_FILE_CANDIDATES = ("model.int8.onnx", "model.onnx")
 OPTIONAL_FILES = ("am.mvn", "config.yaml")
+# paraformer-zh-small ONNX is tens of MB; partial downloads are often 1–10 MB.
+PARAFORMER_MIN_ONNX_BYTES = 20 * 1024 * 1024
+PARAFORMER_MIN_TOKENS_BYTES = 64
 PROGRESS_MARKER = "QUICKER_VOICE_PROGRESS"
 
 
@@ -61,8 +64,12 @@ def _configure_stdio_utf8() -> None:
             pass
 
 
+_configure_stdio_utf8()
+
+
 def report_download_progress(percent: int, message: str) -> None:
     """Machine-readable progress for QuickerAgent host (stdout)."""
+    _configure_stdio_utf8()
     pct = max(0, min(100, int(percent)))
     print(f"{PROGRESS_MARKER}\t{pct}\t{message}", flush=True)
 
@@ -133,16 +140,60 @@ def verify_sensevoice_files(dest: Path) -> None:
 
 
 def is_model_ready(dest: Path | None = None, *, preset: str | None = None) -> bool:
+    return describe_model_status(dest, preset=preset)[0]
+
+
+def describe_model_status(
+    dest: Path | None = None,
+    *,
+    preset: str | None = None,
+) -> tuple[bool, str | None]:
+    """Return (ready, error_message). None error means model is valid."""
     path = dest or target_dir(preset=preset)
-    if resolve_preset(preset) == "sensevoice":
+    key = resolve_preset(preset)
+    if not path.exists():
+        return False, "模型目录不存在"
+    if key == "sensevoice":
         try:
             verify_sensevoice_files(path)
-            return True
-        except RuntimeError:
-            return False
-    if not all((path / name).is_file() for name in REQUIRED_FILES):
-        return False
-    return _model_file(path) is not None
+            return True, None
+        except RuntimeError as exc:
+            return False, str(exc)
+    missing = [name for name in REQUIRED_FILES if not (path / name).is_file()]
+    if missing:
+        return False, f"缺少模型文件: {', '.join(missing)}"
+    tokens_path = path / "tokens.txt"
+    if tokens_path.stat().st_size < PARAFORMER_MIN_TOKENS_BYTES:
+        return False, "tokens.txt 文件不完整（体积过小）"
+    onnx = _model_file(path)
+    if onnx is None:
+        return False, "缺少 ONNX 模型文件"
+    if onnx.stat().st_size < PARAFORMER_MIN_ONNX_BYTES:
+        return False, (
+            f"{onnx.name} 文件不完整（"
+            f"{onnx.stat().st_size // (1024 * 1024)} MB，"
+            f"需要至少 {PARAFORMER_MIN_ONNX_BYTES // (1024 * 1024)} MB）"
+        )
+    return True, None
+
+
+def remove_model_dir(dest: Path) -> None:
+    if dest.exists():
+        shutil.rmtree(dest, ignore_errors=True)
+
+
+def _prepare_model_destination(
+    dest: Path,
+    *,
+    preset: str | None,
+    force: bool,
+) -> None:
+    ready, _ = describe_model_status(dest, preset=preset)
+    if ready and not force:
+        return
+    if dest.exists():
+        report_download_progress(1, "检测到不完整模型，正在清理…")
+        remove_model_dir(dest)
 
 
 def expand_download_urls(url: str) -> list[str]:
@@ -307,12 +358,13 @@ def download_sensevoice_from_archive(dest: Path) -> None:
     verify_sensevoice_files(dest)
 
 
-def ensure_sensevoice_model(root: Path | None = None) -> Path:
+def ensure_sensevoice_model(root: Path | None = None, *, force: bool = False) -> Path:
     dest = target_dir(root, "sensevoice")
-    if is_model_ready(dest, preset="sensevoice"):
+    if is_model_ready(dest, preset="sensevoice") and not force:
         report_download_progress(100, "模型已存在")
         return dest
 
+    _prepare_model_destination(dest, preset="sensevoice", force=force)
     report_download_progress(2, "准备下载 SenseVoice 模型…")
     errors: list[str] = []
     for fetch in (download_sensevoice_from_modelscope, download_sensevoice_from_archive):
@@ -332,17 +384,23 @@ def ensure_sensevoice_model(root: Path | None = None) -> Path:
     )
 
 
-def ensure_asr_model(root: Path | None = None, preset: str | None = None) -> Path:
+def ensure_asr_model(
+    root: Path | None = None,
+    preset: str | None = None,
+    *,
+    force: bool = False,
+) -> Path:
     key = resolve_preset(preset)
     if key == "sensevoice":
-        return ensure_sensevoice_model(root)
+        return ensure_sensevoice_model(root, force=force)
 
     preset_info = MODEL_PRESETS[key]
     dest = target_dir(root, key)
-    if is_model_ready(dest, preset=key):
+    if is_model_ready(dest, preset=key) and not force:
         report_download_progress(100, "模型已存在")
         return dest
 
+    _prepare_model_destination(dest, preset=key, force=force)
     report_download_progress(2, f"准备下载 {preset_info['label']}…")
     print(f"Fetching {preset_info['label']}")
     archive_name = preset_info["url"].rsplit("/", maxsplit=1)[-1]
@@ -362,11 +420,45 @@ def ensure_paraformer_model(root: Path | None = None) -> Path:
     return ensure_asr_model(root, preset="paraformer")
 
 
-def main() -> None:
+def check_main(argv: list[str] | None = None) -> None:
+    """CLI: exit 0 when model is valid, 1 with stderr message otherwise."""
     _configure_stdio_utf8()
-    preset = resolve_preset()
+    import argparse
+    import sys
+
+    if argv is None:
+        argv = sys.argv[1:]
+
+    parser = argparse.ArgumentParser(description="Check QuickerAgent ASR model integrity")
+    parser.add_argument("--root", type=Path, default=None, help="Plugin data root")
+    parser.add_argument("--preset", default=None, help="sensevoice | paraformer")
+    args = parser.parse_args(argv)
+    dest = target_dir(args.root, args.preset)
+    ready, err = describe_model_status(dest, preset=args.preset)
+    if ready:
+        print("ok")
+        raise SystemExit(0)
+    print(err or "model not ready", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def main(argv: list[str] | None = None) -> None:
+    _configure_stdio_utf8()
+    import argparse
+    import sys
+
+    if argv is None:
+        argv = sys.argv[1:]
+
+    parser = argparse.ArgumentParser(description="Download QuickerAgent ASR model")
+    parser.add_argument("--force", action="store_true", help="Remove existing model and re-download")
+    parser.add_argument("--preset", default=None, help="sensevoice | paraformer")
+    parser.add_argument("--root", type=Path, default=None, help="Plugin data root")
+    args, _unknown = parser.parse_known_args(argv)
+
+    preset = resolve_preset(args.preset)
     try:
-        path = ensure_asr_model(preset=preset)
+        path = ensure_asr_model(args.root, preset=preset, force=args.force)
     except Exception as exc:
         print(f"Download failed: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
