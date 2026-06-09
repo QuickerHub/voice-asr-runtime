@@ -9,14 +9,16 @@ from PyInstaller.utils.hooks import collect_all
 
 ROOT = Path(SPECPATH)
 ENTRY = ROOT / "packaging" / "runtime_entry.py"
+MODEL_IDENTITY = ROOT / "models" / "sensevoice-model-identity.json"
 
 sherpa_datas, sherpa_binaries, sherpa_hiddenimports = collect_all("sherpa_onnx")
+bundle_datas = [*sherpa_datas, (str(MODEL_IDENTITY), "models")]
 
 a = Analysis(
     [str(ENTRY)],
     pathex=[str(ROOT / "src")],
     binaries=sherpa_binaries,
-    datas=sherpa_datas,
+    datas=bundle_datas,
     hiddenimports=[
         *sherpa_hiddenimports,
         "aiohttp",

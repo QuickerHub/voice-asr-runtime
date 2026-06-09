@@ -26,3 +26,17 @@ def plugin_data_root() -> Path:
 
 def default_models_dir() -> Path:
     return plugin_data_root() / "models"
+
+
+def repo_models_dir() -> Path:
+    """Directory containing sensevoice-model-identity.json (dev tree or PyInstaller bundle)."""
+    if is_frozen():
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            return Path(meipass) / "models"
+        return Path(sys.executable).resolve().parent / "models"
+    return Path(__file__).resolve().parents[2] / "models"
+
+
+def sensevoice_identity_path() -> Path:
+    return repo_models_dir() / "sensevoice-model-identity.json"

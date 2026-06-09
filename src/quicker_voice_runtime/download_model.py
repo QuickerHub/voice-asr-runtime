@@ -13,9 +13,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from quicker_voice_runtime.paths import plugin_data_root
-
-_IDENTITY_PATH = Path(__file__).resolve().parents[2] / "models" / "sensevoice-model-identity.json"
+from quicker_voice_runtime.paths import plugin_data_root, sensevoice_identity_path
 
 SENSEVOICE_ARCHIVE_URL = (
     "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/"
@@ -74,10 +72,29 @@ def report_download_progress(percent: int, message: str) -> None:
     print(f"{PROGRESS_MARKER}\t{pct}\t{message}", flush=True)
 
 
+def _identity_file_candidates() -> list[Path]:
+    plugin_root = plugin_data_root()
+    candidates = [
+        sensevoice_identity_path(),
+        plugin_root / "runtime" / "models" / "sensevoice-model-identity.json",
+        plugin_root / "models" / "sensevoice-model-identity.json",
+    ]
+    seen: set[Path] = set()
+    ordered: list[Path] = []
+    for path in candidates:
+        resolved = path.resolve()
+        if resolved not in seen:
+            seen.add(resolved)
+            ordered.append(resolved)
+    return ordered
+
+
 def load_sensevoice_identity() -> dict[str, Any]:
-    if not _IDENTITY_PATH.is_file():
-        raise RuntimeError(f"Missing model identity file: {_IDENTITY_PATH}")
-    return json.loads(_IDENTITY_PATH.read_text(encoding="utf-8"))
+    for path in _identity_file_candidates():
+        if path.is_file():
+            return json.loads(path.read_text(encoding="utf-8"))
+    tried = ", ".join(str(path) for path in _identity_file_candidates())
+    raise RuntimeError(f"Missing model identity file (tried: {tried})")
 
 
 def package_root() -> Path:
